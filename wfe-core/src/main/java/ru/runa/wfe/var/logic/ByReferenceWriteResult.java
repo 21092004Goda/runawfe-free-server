@@ -2,7 +2,7 @@ package ru.runa.wfe.var.logic;
 
 public class ByReferenceWriteResult {
 
-    static final ByReferenceWriteResult SKIP = new ByReferenceWriteResult(false, null);
+    public static final ByReferenceWriteResult SKIP = new ByReferenceWriteResult(false, null);
 
     public final boolean shouldSave;
     public final Object value;
@@ -12,7 +12,7 @@ public class ByReferenceWriteResult {
         this.value = value;
     }
 
-    static ByReferenceWriteResult save(Object value) {
+    public static ByReferenceWriteResult save(Object value) {
         return new ByReferenceWriteResult(true, value);
     }
 }

@@ -57,13 +57,15 @@ public class ExternalStorageHandler extends OfficeFilesSupplierHandler<DataBindi
 
         log.info("ExternalStorageHandler.execute: variable='" + binding.getVariableName()
                 + "', queryType=" + config.getQueryType()
-                + "', isByReference=" + byRef
+                + "', byReference=" + byRef
                 + ", userType=" + (variable.getDefinition().getUserType() != null ? variable.getDefinition().getUserType().getName() : "null")
                 + ", format=" + variable.getDefinition().getFormatClassName());
 
-        if (byRef && (config.getQueryType() == QueryType.INSERT || config.getQueryType() == QueryType.UPDATE)) {
+        if (byRef) {
             log.warn("byReference: skipping " + config.getQueryType() + " for variable '"
-                    + variable.getDefinition().getName() + "' — insert/update is automatic for byReference types");
+                    + variable.getDefinition().getName()
+                    + "' — External storage does not support byReference user types; "
+                    + "use the dedicated reference-storage handler (e.g. Redmine/Internal) instead");
             return ExecutionResult.EMPTY;
         }
         switch (config.getQueryType()) {

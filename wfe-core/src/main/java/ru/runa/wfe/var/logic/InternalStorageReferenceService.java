@@ -4,12 +4,15 @@ import java.util.List;
 import ru.runa.wfe.var.UserType;
 import ru.runa.wfe.var.UserTypeMap;
 import ru.runa.wfe.var.VariableProvider;
+import ru.runa.wfe.var.VariableStorageKind;
 
 public interface InternalStorageReferenceService {
 
     String ID_ATTRIBUTE_NAME = "id";
 
     String BY_REFERENCE_FILE_SUFFIX = "&";
+
+    VariableStorageKind getKind();
 
     UserTypeMap loadById(UserType userType, Long id);
 

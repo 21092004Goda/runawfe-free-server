@@ -18,20 +18,25 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Service;
 import ru.runa.wfe.InternalApplicationException;
+import ru.runa.wfe.datasource.DataSource;
 import ru.runa.wfe.datasource.DataSourceStorage;
 import ru.runa.wfe.datasource.DataSourceStuff;
 import ru.runa.wfe.datasource.ExcelDataSource;
 import ru.runa.wfe.office.excel.utils.ExcelHelper;
+import ru.runa.wfe.commons.condition.ConditionProcessor;
 import ru.runa.wfe.var.UserType;
 import ru.runa.wfe.var.UserTypeMap;
 import ru.runa.wfe.var.VariableDefinition;
 import ru.runa.wfe.var.VariableProvider;
+import ru.runa.wfe.var.VariableStorageKind;
 import ru.runa.wfe.var.format.FormatCommons;
 import ru.runa.wfe.var.format.VariableFormat;
 import ru.runa.wfe.var.logic.InternalStorageReferenceService;
 
 @CommonsLog
+@Service("internalStorageReferenceService")
 public class InternalStorageReferenceServiceImpl implements InternalStorageReferenceService {
 
     private static final String XLSX_SUFFIX = ".xlsx";
@@ -40,6 +45,11 @@ public class InternalStorageReferenceServiceImpl implements InternalStorageRefer
     private static final String CANNOT_UPDATE_RECORD_MSG = "byReference: cannot update record with id=";
     private static final String FOR_TYPE_LOG = " for type ";
     private static final Map<String, Object> LOCKS = new ConcurrentHashMap<>();
+
+    @Override
+    public VariableStorageKind getKind() {
+        return VariableStorageKind.EXCEL;
+    }
 
     @Override
     public UserTypeMap loadById(UserType userType, Long id) {
@@ -288,9 +298,13 @@ public class InternalStorageReferenceServiceImpl implements InternalStorageRefer
     }
 
     private String getFilePath(UserType userType) {
-        ru.runa.wfe.datasource.DataSource ds = DataSourceStorage.getDataSource(DataSourceStuff.INTERNAL_STORAGE_DATA_SOURCE_NAME);
+        DataSource ds = DataSourceStorage.getDataSource(DataSourceStuff.INTERNAL_STORAGE_DATA_SOURCE_NAME);
         if (!(ds instanceof ExcelDataSource)) {
-            throw new InternalApplicationException("byReference: InternalStorage datasource is not ExcelDataSource");
+            String actualType = ds == null ? "null" : ds.getClass().getSimpleName();
+            throw new InternalApplicationException("byReference: user type '" + userType.getName()
+                    + "' is declared with storageType=EXCEL but the configured datasource '"
+                    + DataSourceStuff.INTERNAL_STORAGE_DATA_SOURCE_NAME + "' is " + actualType
+                    + ". Reconfigure the datasource to ExcelDataSource, or change the user type's referenceStorage attribute.");
         }
         return ((ExcelDataSource) ds).getFilePath() + File.separator + userType.getName() + BY_REFERENCE_FILE_SUFFIX + XLSX_SUFFIX;
     }

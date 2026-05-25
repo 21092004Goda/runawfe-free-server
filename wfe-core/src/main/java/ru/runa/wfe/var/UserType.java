@@ -22,6 +22,7 @@ public class UserType implements Serializable {
     public static final String DELIM = ".";
     private String name;
     private boolean byReference;
+    private VariableStorageKind storageType;
     private final List<VariableDefinition> attributes = Lists.newArrayList();
     private final Map<String, VariableDefinition> attributesMap = Maps.newHashMap();
 
@@ -32,9 +33,10 @@ public class UserType implements Serializable {
         this.name = name.intern();
     }
 
-    public UserType(String name, boolean byReference) {
+    public UserType(String name, boolean byReference, VariableStorageKind storageType) {
         this.name = name.intern();
         this.byReference = byReference;
+        this.storageType = storageType;
     }
 
     public String getName() {
@@ -43,6 +45,10 @@ public class UserType implements Serializable {
 
     public boolean isByReference() {
         return byReference;
+    }
+
+    public VariableStorageKind getStorageType() {
+        return storageType;
     }
 
     public static boolean isByReferenceVariable(WfVariable variable) {
@@ -138,7 +144,7 @@ public class UserType implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(name, byReference, attributes);
+        return Objects.hashCode(name, byReference, storageType, attributes);
     }
 
     @Override
@@ -147,11 +153,19 @@ public class UserType implements Serializable {
             return false;
         }
         UserType type = (UserType) obj;
-        return Objects.equal(name, type.name) && byReference == type.byReference && Objects.equal(attributes, type.attributes);
+        return Objects.equal(name, type.name)
+                && byReference == type.byReference
+                && storageType == type.storageType
+                && Objects.equal(attributes, type.attributes);
     }
 
     @Override
     public String toString() {
-        return MoreObjects.toStringHelper(getClass()).add("name", name).add("byReference", byReference).add("attributes", attributes).toString();
+        return MoreObjects.toStringHelper(getClass())
+                .add("name", name)
+                .add("byReference", byReference)
+                .add("storageType", storageType)
+                .add("attributes", attributes)
+                .toString();
     }
 }

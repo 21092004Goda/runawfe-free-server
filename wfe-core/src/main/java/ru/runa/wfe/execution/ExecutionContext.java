@@ -51,8 +51,10 @@ import ru.runa.wfe.var.dao.VariableLoader;
 import ru.runa.wfe.var.dto.WfVariable;
 import ru.runa.wfe.var.format.VariableFormat;
 import ru.runa.wfe.var.format.VariableFormatContainer;
+import ru.runa.wfe.var.logic.ByReferenceResolvingVariableLoader;
 import ru.runa.wfe.var.logic.ByReferenceVariableHandler;
 import ru.runa.wfe.var.logic.ByReferenceWriteResult;
+import ru.runa.wfe.var.logic.InternalStorageReferenceServiceRouter;
 
 @CommonsLog
 public class ExecutionContext {
@@ -87,6 +89,8 @@ public class ExecutionContext {
     private CurrentSwimlaneDao currentSwimlaneDao;
     @Autowired
     private SwimlaneDao swimlaneDao;
+    @Autowired
+    private InternalStorageReferenceServiceRouter internalStorageReferenceServiceRouter;
 
     protected ExecutionContext(
             ApplicationContext applicationContext, ParsedProcessDefinition parsedProcessDefinition, Token token,
@@ -103,9 +107,12 @@ public class ExecutionContext {
         } else {
             this.variableLoader = new VariableLoader(variableDao, loadedVariables);
         }
-        this.baseProcessVariableLoader = new BaseProcessVariableLoader(variableLoader, getParsedProcessDefinition(), getProcess());
         this.byReferenceHandler = new ByReferenceVariableHandler(
                 variableLoader, getProcess(), processLogDao, getCurrentProcess(), getCurrentToken()
+        );
+        this.baseProcessVariableLoader = new ByReferenceResolvingVariableLoader(
+                variableLoader, getParsedProcessDefinition(), getProcess(),
+                byReferenceHandler, internalStorageReferenceServiceRouter
         );
     }
 
@@ -212,15 +219,7 @@ public class ExecutionContext {
                 return new WfVariable(swimlaneDefinition.toVariableDefinition(), swimlane != null ? swimlane.getExecutor() : null);
             }
         }
-        WfVariable wfVariable = baseProcessVariableLoader.get(name);
-        if (wfVariable != null && wfVariable.getDefinition().isUserType()
-                && wfVariable.getDefinition().getUserType().isByReference()) {
-            wfVariable = byReferenceHandler.resolve(wfVariable);
-        }
-        if (wfVariable != null && ByReferenceVariableHandler.isContainerOfByReference(wfVariable.getDefinition())) {
-            wfVariable = byReferenceHandler.resolveContainer(wfVariable);
-        }
-        return wfVariable;
+        return baseProcessVariableLoader.get(name);
     }
 
     /**
@@ -293,17 +292,10 @@ public class ExecutionContext {
 
     private void setVariableValue(VariableDefinition variableDefinition, Object value) {
         Preconditions.checkNotNull(variableDefinition, "variableDefinition");
-        if (variableDefinition.isUserType() && variableDefinition.getUserType().isByReference()) {
-            ByReferenceWriteResult result = byReferenceHandler.write(variableDefinition, value);
-            if (result.shouldSave) {
-                saveVariableDefaultToDb(variableDefinition, result.value);
-            }
-            return;
-        }
-        if (ByReferenceVariableHandler.isContainerOfByReference(variableDefinition)) {
-            ByReferenceWriteResult result = byReferenceHandler.writeContainer(variableDefinition, value);
-            if (result.shouldSave) {
-                saveVariableDefaultToDb(variableDefinition, result.value);
+        ByReferenceWriteResult byRefResult = byReferenceHandler.tryWrite(variableDefinition, value, internalStorageReferenceServiceRouter);
+        if (byRefResult != null) {
+            if (byRefResult.shouldSave) {
+                saveVariableAsDefault(variableDefinition, byRefResult.value);
             }
             return;
         }
@@ -317,14 +309,7 @@ public class ExecutionContext {
                 break;
             }
             case DEFAULT: {
-                ConvertToSimpleVariablesContext context = new ConvertToSimpleVariablesOnSaveContext(
-                        variableDefinition, value, getCurrentProcess(), baseProcessVariableLoader, currentVariableDao
-                );
-                VariableFormat variableFormat = variableDefinition.getFormatNotNull();
-                for (ConvertToSimpleVariablesResult simpleVariables : variableFormat.processBy(new ConvertToSimpleVariables(), context)) {
-                    Object convertedValue = convertValueForVariableType(simpleVariables.variableDefinition, simpleVariables.value);
-                    setSimpleVariableValue(getCurrentToken(), simpleVariables.variableDefinition, convertedValue);
-                }
+                saveVariableAsDefault(variableDefinition, value);
                 break;
             }
             default: {
@@ -433,7 +418,7 @@ public class ExecutionContext {
         return resultingVariableLog;
     }
 
-    private void saveVariableDefaultToDb(VariableDefinition variableDefinition, Object value) {
+    private void saveVariableAsDefault(VariableDefinition variableDefinition, Object value) {
         ConvertToSimpleVariablesContext context = new ConvertToSimpleVariablesOnSaveContext(
                 variableDefinition, value, getCurrentProcess(), baseProcessVariableLoader, currentVariableDao
         );

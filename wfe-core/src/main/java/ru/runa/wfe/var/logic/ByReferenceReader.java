@@ -3,8 +3,6 @@ package ru.runa.wfe.var.logic;
 import com.google.common.collect.Lists;
 import java.util.List;
 import lombok.extern.apachecommons.CommonsLog;
-import ru.runa.wfe.InternalApplicationException;
-import ru.runa.wfe.commons.ApplicationContextFactory;
 import ru.runa.wfe.commons.TypeConversionUtil;
 import ru.runa.wfe.execution.Process;
 import ru.runa.wfe.var.UserType;
@@ -25,7 +23,7 @@ class ByReferenceReader {
         this.process = process;
     }
 
-    WfVariable resolve(WfVariable wfVariable) {
+    WfVariable resolve(WfVariable wfVariable, InternalStorageReferenceService refService) {
         Object value = wfVariable.getValue();
         if (value == null) {
             return wfVariable;
@@ -34,38 +32,39 @@ class ByReferenceReader {
         if (id == null) {
             return wfVariable;
         }
-        InternalStorageReferenceService refService = ApplicationContextFactory.getInternalStorageReferenceService();
-        UserTypeMap fullMap = refService.loadById(wfVariable.getDefinition().getUserType(), id);
+        UserType userType = wfVariable.getDefinition().getUserType();
+        UserTypeMap fullMap = refService.loadById(userType, id);
         if (fullMap == null) {
-            throw new InternalApplicationException(LOG_NOT_FOUND_PREFIX + id
-                    + " not found in InternalStorage for type " + wfVariable.getDefinition().getUserType().getName());
+            log.warn(LOG_NOT_FOUND_PREFIX + id + " not found in InternalStorage for type " + userType.getName()
+                    + " (variable '" + wfVariable.getDefinition().getName() + "', process " + process.getId()
+                    + ") — returning null value");
+            return new WfVariable(wfVariable.getDefinition(), null);
         }
         return new WfVariable(wfVariable.getDefinition(), fullMap);
     }
 
     @SuppressWarnings("unchecked")
-    WfVariable resolveContainer(WfVariable wfVariable) {
+    WfVariable resolveContainer(WfVariable wfVariable, InternalStorageReferenceService componentRefService) {
         Object value = wfVariable.getValue();
         if (value == null) {
             return wfVariable;
         }
         UserType[] componentUserTypes = wfVariable.getDefinition().getFormatComponentUserTypes();
-        InternalStorageReferenceService refService = ApplicationContextFactory.getInternalStorageReferenceService();
         if (value instanceof List) {
-            return resolveListContainer(wfVariable, (List<Object>) value, componentUserTypes, refService);
+            return resolveListContainer(wfVariable, (List<Object>) value, componentUserTypes, componentRefService);
         }
         return wfVariable;
     }
 
     private WfVariable resolveListContainer(WfVariable wfVariable, List<Object> list, UserType[] componentUserTypes,
-            InternalStorageReferenceService refService) {
+                                            InternalStorageReferenceService componentRefService) {
         UserType componentUserType = componentUserTypes.length > 0 ? componentUserTypes[0] : null;
         if (componentUserType == null || !componentUserType.isByReference()) {
             return wfVariable;
         }
         List<Object> resolvedList = Lists.newArrayListWithCapacity(list.size());
         for (Object element : list) {
-            resolvedList.add(resolveListElement(element, componentUserType, refService));
+            resolvedList.add(resolveListElement(element, componentUserType, componentRefService));
         }
         return new WfVariable(wfVariable.getDefinition(), resolvedList);
     }
@@ -83,8 +82,9 @@ class ByReferenceReader {
         if (fullMap != null) {
             return fullMap;
         }
-        throw new InternalApplicationException(LOG_NOT_FOUND_PREFIX + id
-                + " not found in InternalStorage for list component type " + componentUserType.getName());
+        log.warn(LOG_NOT_FOUND_PREFIX + id + " not found in InternalStorage for list component type "
+                + componentUserType.getName() + " (process " + process.getId() + ") — keeping id-only element");
+        return element;
     }
 
     private Long extractId(Object value) {

@@ -225,10 +225,6 @@ public class ApplicationContextFactory implements ApplicationContextAware {
         return getContext().getBean(VariableLogic.class);
     }
 
-    public static InternalStorageReferenceService getInternalStorageReferenceService() {
-        return getContext().getBean(InternalStorageReferenceService.class);
-    }
-
     public static FormHandlerExecutor getFormHandlerExecutor() {
         return getContext().getBean(FormHandlerExecutor.class);
     }

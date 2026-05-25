@@ -1,11 +1,12 @@
 package ru.runa.wfe.var.logic;
 
 import com.google.common.collect.Lists;
+
 import java.util.List;
 import java.util.Map;
+
 import lombok.extern.apachecommons.CommonsLog;
 import ru.runa.wfe.InternalApplicationException;
-import ru.runa.wfe.commons.ApplicationContextFactory;
 import ru.runa.wfe.commons.TypeConversionUtil;
 import ru.runa.wfe.execution.Process;
 import ru.runa.wfe.var.UserType;
@@ -27,9 +28,9 @@ class ByReferenceWriter {
         this.logger = logger;
     }
 
-    ByReferenceWriteResult write(VariableDefinition variableDefinition, Object value) {
+    ByReferenceWriteResult write(VariableDefinition variableDefinition, Object value,
+                                 InternalStorageReferenceService refService) {
         UserType userType = variableDefinition.getUserType();
-        InternalStorageReferenceService refService = ApplicationContextFactory.getInternalStorageReferenceService();
 
         if (value == null) {
             Long oldId = getExistingId(variableDefinition);
@@ -71,10 +72,12 @@ class ByReferenceWriter {
     }
 
     @SuppressWarnings("unchecked")
-    ByReferenceWriteResult writeContainer(VariableDefinition variableDefinition, Object value) {
+    ByReferenceWriteResult writeContainer(VariableDefinition variableDefinition, Object value,
+                                          InternalStorageReferenceService componentRefService) {
         UserType[] componentUserTypes = variableDefinition.getFormatComponentUserTypes();
         if (value instanceof List) {
-            return ByReferenceWriteResult.save(writeListContainer(variableDefinition, (List<Object>) value, componentUserTypes));
+            return ByReferenceWriteResult.save(
+                    writeListContainer(variableDefinition, (List<Object>) value, componentUserTypes, componentRefService));
         } else if (value == null) {
             return ByReferenceWriteResult.save(null);
         } else {
@@ -83,15 +86,15 @@ class ByReferenceWriter {
         }
     }
 
-    private List<Object> writeListContainer(VariableDefinition containerDef, List<Object> list, UserType[] componentUserTypes) {
+    private List<Object> writeListContainer(VariableDefinition containerDef, List<Object> list, UserType[] componentUserTypes,
+                                            InternalStorageReferenceService componentRefService) {
         UserType componentUserType = componentUserTypes.length > 0 ? componentUserTypes[0] : null;
         List<Object> idOnlyList = Lists.newArrayListWithCapacity(list.size());
         if (componentUserType != null && componentUserType.isByReference()) {
-            InternalStorageReferenceService refService = ApplicationContextFactory.getInternalStorageReferenceService();
             for (int i = 0; i < list.size(); i++) {
                 Object element = list.get(i);
                 if (element instanceof UserTypeMap) {
-                    UserTypeMap idOnly = processListElement((UserTypeMap) element, i, containerDef, componentUserType, refService);
+                    UserTypeMap idOnly = processListElement((UserTypeMap) element, i, containerDef, componentUserType, componentRefService);
                     if (idOnly != null) {
                         idOnlyList.add(idOnly);
                     }
@@ -106,7 +109,7 @@ class ByReferenceWriter {
     }
 
     private UserTypeMap processListElement(UserTypeMap fullMap, int index, VariableDefinition containerDef,
-            UserType componentUserType, InternalStorageReferenceService refService) {
+                                           UserType componentUserType, InternalStorageReferenceService refService) {
         Long id = extractId(fullMap, index);
         if (id != null && id > 0) {
             if (hasNonIdAttributes(fullMap)) {
